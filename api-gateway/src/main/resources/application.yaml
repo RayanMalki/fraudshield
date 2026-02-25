@@ -15,4 +15,4 @@ spring:
                 - Path=/api/auth/**
 
 jwt:
-  secret: fraudshield-super-secret-key-2026
+  secret: ${JWT_SECRET}
