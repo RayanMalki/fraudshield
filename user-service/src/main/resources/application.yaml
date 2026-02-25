@@ -5,13 +5,13 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5433/userdb
     username: postgres
-    password: postgres
+    password: ${DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: true
 
 jwt:
-  secret: fraudshield-super-secret-key-2026
+  secret: ${JWT_SECRET}
   expiration: 86400000
 
