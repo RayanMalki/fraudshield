@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+option java_package = "com.fraudshield.ingestion.grpc";
+option java_outer_classname = "FraudDetectionProto";
+option java_multiple_files = true;
+
+service FraudDetectionService {
+  rpc PredictFraud (FraudRequest) returns (FraudResponse);
+}
+
+message FraudRequest {
+  string transaction_id = 1;
+  string card_number = 2;
+  double amount = 3;
+  string merchant = 4;
+  string location = 5;
+}
+
+message FraudResponse {
+  string transaction_id = 1;
+  bool fraudulent = 2;
+  float confidence_score = 3;
+}
