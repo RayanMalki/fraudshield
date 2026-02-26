@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: ingestion-service
+
+server:
+  port: 8082
+
+ml:
+  service:
+    host: ${ML_SERVICE_HOST:ml-service}
+    port: ${ML_SERVICE_PORT:50051}
