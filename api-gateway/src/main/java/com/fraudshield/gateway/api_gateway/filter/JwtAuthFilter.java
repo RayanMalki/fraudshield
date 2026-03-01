@@ -19,9 +19,10 @@ public class JwtAuthFilter implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler){
 
 
-       if (request.getRequestURI().equals("/api/auth/login")
-               || request.getRequestURI().equals("/api/auth/register") ) {
-           System.out.println("URI: " + request.getRequestURI());
+       // Allow CORS preflight and public auth endpoints without a token
+       if ("OPTIONS".equalsIgnoreCase(request.getMethod())
+               || request.getRequestURI().equals("/api/auth/login")
+               || request.getRequestURI().equals("/api/auth/register")) {
            return true;
        }
 
