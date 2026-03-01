@@ -1,0 +1,5 @@
+{
+  "pythonPath": "ml-service/.venv/bin/python3",
+  "venvPath": "ml-service",
+  "venv": ".venv"
+}
