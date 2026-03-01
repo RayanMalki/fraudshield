@@ -87,8 +87,8 @@ flowchart TD
 |---|---|
 | API Gateway | ✅ Complete |
 | User Service | ✅ Complete |
-| Data Ingestion Service | 🔄 In Progress |
-| Results Service | 🔄 In Progress |
+| Data Ingestion Service | ✅ Complete |
+| Results Service | ✅ Complete |
 | ML Service | 🔄 In Progress |
 
 ---
