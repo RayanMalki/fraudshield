@@ -9,3 +9,5 @@
 *.iws
 *.iml
 *.ipr
+frontend/.dockerignore
+frontend/.env.example
