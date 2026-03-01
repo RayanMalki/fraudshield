@@ -11,3 +11,4 @@
 *.ipr
 frontend/.dockerignore
 frontend/.env.example
+ml-service/data/transactions.csv
