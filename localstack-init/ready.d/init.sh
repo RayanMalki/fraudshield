@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-AWS="aws --endpoint-url=http://localhost:4566 --region us-east-1"
+AWS="aws --endpoint-url=http://localstack:4566 --region us-east-1"
 
 echo "=== [1/6] Creating SQS queue: fraud-results ==="
 $AWS sqs create-queue --queue-name fraud-results
@@ -33,15 +33,11 @@ SNS_ARN=$($AWS sns create-topic --name fraud-alerts --query TopicArn --output te
 echo "SNS ARN: $SNS_ARN"
 
 echo "=== [5/6] Deploying Lambda: fraud-processor ==="
-cd /tmp
-cp /lambda/fraud_handler.py .
-zip fraud_handler.zip fraud_handler.py
-
 $AWS lambda create-function \
   --function-name fraud-processor \
   --runtime python3.12 \
   --handler fraud_handler.handler \
-  --zip-file fileb://fraud_handler.zip \
+  --zip-file fileb:///lambda/fraud_handler.zip \
   --role arn:aws:iam::000000000000:role/lambda-role \
   --environment "Variables={DYNAMODB_TABLE=fraud-results,SNS_TOPIC_ARN=$SNS_ARN,AWS_ENDPOINT_URL=http://localstack:4566}"
 
