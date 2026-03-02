@@ -1,7 +1,9 @@
+import os
 from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Literal
 
+import boto3
 import joblib
 import pandas as pd
 from fastapi import FastAPI
@@ -9,6 +11,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 MODEL_PATH = Path(__file__).parent / "model" / "fraud_model.pkl"
+
+MODEL_S3_BUCKET = os.environ.get("MODEL_S3_BUCKET", "fraudshield-models")
+MODEL_S3_KEY = os.environ.get("MODEL_S3_KEY", "fraud_model.pkl")
+AWS_ENDPOINT_URL = os.environ.get("AWS_ENDPOINT_URL", "")
+
+
+def _download_model_from_s3() -> None:
+    """Download the model artifact from S3 into MODEL_PATH."""
+    MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    kwargs = dict(region_name="us-east-1")
+    if AWS_ENDPOINT_URL:
+        kwargs["endpoint_url"] = AWS_ENDPOINT_URL
+    aws_key = os.environ.get("AWS_ACCESS_KEY_ID", "test")
+    aws_secret = os.environ.get("AWS_SECRET_ACCESS_KEY", "test")
+    s3 = boto3.client("s3", aws_access_key_id=aws_key, aws_secret_access_key=aws_secret, **kwargs)
+    print(f"Downloading model from s3://{MODEL_S3_BUCKET}/{MODEL_S3_KEY} ...")
+    s3.download_file(MODEL_S3_BUCKET, MODEL_S3_KEY, str(MODEL_PATH))
+    print("Model downloaded successfully.")
 
 # Columns produced by pd.get_dummies(df, columns=["type"]) during training,
 # in the order the model expects them.
@@ -32,6 +52,7 @@ model = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global model
+    _download_model_from_s3()
     model = joblib.load(MODEL_PATH)
 
     from grpc_server import serve as grpc_serve
