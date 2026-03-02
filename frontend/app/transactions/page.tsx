@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Send, RotateCcw, Info } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import {
-  predictFraud,
-  saveResult,
+  analyzeTransaction,
   TransactionInput,
   PredictionResult,
   TransactionType,
@@ -85,7 +84,6 @@ export default function TransactionsPage() {
   const [lastTx, setLastTx] = useState<TransactionInput | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [savedOk, setSavedOk] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) router.push("/");
@@ -101,7 +99,6 @@ export default function TransactionsPage() {
     setResult(null);
     setLastTx(null);
     setError(null);
-    setSavedOk(null);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -109,7 +106,6 @@ export default function TransactionsPage() {
     setLoading(true);
     setError(null);
     setResult(null);
-    setSavedOk(null);
 
     try {
       const tx: TransactionInput = {
@@ -133,27 +129,9 @@ export default function TransactionsPage() {
         }
       }
 
-      const prediction = await predictFraud(tx);
+      const prediction = await analyzeTransaction(tx, token!);
       setResult(prediction);
       setLastTx(tx);
-
-      // Persist to results-service (best-effort, non-blocking)
-      if (token) {
-        saveResult(
-          {
-            transactionId: crypto.randomUUID(),
-            cardNumber: "DIRECT",
-            amount: tx.amount,
-            merchant: tx.type,       // reuse merchant field for type
-            location: "FraudShield Analysis",
-            fraudulent: prediction.is_fraud,
-            confidenceScore: prediction.confidence,
-          },
-          token
-        )
-          .then(() => setSavedOk(true))
-          .catch(() => setSavedOk(false));
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed");
     } finally {
@@ -269,14 +247,6 @@ export default function TransactionsPage() {
             </div>
           </form>
 
-          {/* Save status indicator */}
-          {savedOk !== null && (
-            <p className={`mt-3 text-xs ${savedOk ? "text-emerald-500" : "text-yellow-600"}`}>
-              {savedOk
-                ? "✓ Result saved to history"
-                : "⚠ Could not save to history (check results-service)"}
-            </p>
-          )}
         </div>
 
         {/* ── Result Panel ─────────────────────────────────────────── */}
