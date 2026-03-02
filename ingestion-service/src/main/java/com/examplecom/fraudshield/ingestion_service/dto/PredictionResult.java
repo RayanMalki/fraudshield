@@ -11,7 +11,7 @@ import lombok.AllArgsConstructor;
 public class PredictionResult {
 
     @JsonProperty("is_fraud")
-    private boolean is_fraud;
+    private boolean fraud;
 
     private double confidence;
 }
