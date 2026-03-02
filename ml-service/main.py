@@ -17,8 +17,9 @@ MODEL_S3_KEY = os.environ.get("MODEL_S3_KEY", "fraud_model.pkl")
 AWS_ENDPOINT_URL = os.environ.get("AWS_ENDPOINT_URL", "")
 
 
-def _download_model_from_s3() -> None:
-    """Download the model artifact from S3 into MODEL_PATH."""
+def _download_model_from_s3(retries: int = 10, delay: int = 10) -> None:
+    """Download the model artifact from S3, retrying until the init script has uploaded it."""
+    import time
     MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
     kwargs = dict(region_name="us-east-1")
     if AWS_ENDPOINT_URL:
@@ -26,9 +27,16 @@ def _download_model_from_s3() -> None:
     aws_key = os.environ.get("AWS_ACCESS_KEY_ID", "test")
     aws_secret = os.environ.get("AWS_SECRET_ACCESS_KEY", "test")
     s3 = boto3.client("s3", aws_access_key_id=aws_key, aws_secret_access_key=aws_secret, **kwargs)
-    print(f"Downloading model from s3://{MODEL_S3_BUCKET}/{MODEL_S3_KEY} ...")
-    s3.download_file(MODEL_S3_BUCKET, MODEL_S3_KEY, str(MODEL_PATH))
-    print("Model downloaded successfully.")
+    for attempt in range(1, retries + 1):
+        try:
+            print(f"Downloading model from s3://{MODEL_S3_BUCKET}/{MODEL_S3_KEY} (attempt {attempt}/{retries}) ...")
+            s3.download_file(MODEL_S3_BUCKET, MODEL_S3_KEY, str(MODEL_PATH))
+            print("Model downloaded successfully.")
+            return
+        except Exception as e:
+            print(f"Model not available yet ({e}). Retrying in {delay}s ...")
+            time.sleep(delay)
+    raise RuntimeError(f"Failed to download model from S3 after {retries} attempts.")
 
 # Columns produced by pd.get_dummies(df, columns=["type"]) during training,
 # in the order the model expects them.
