@@ -1,4 +1,12 @@
 spring:
+  cloud:
+    aws:
+      endpoint: ${AWS_ENDPOINT_URL:http://localstack:4566}
+      region:
+        static: us-east-1
+      credentials:
+        access-key: test
+        secret-key: test
   application:
     name: ingestion-service
 
@@ -9,3 +17,10 @@ ml:
   service:
     host: ${ML_SERVICE_HOST:ml-service}
     port: ${ML_SERVICE_PORT:50051}
+    http-url: ${ML_SERVICE_HTTP_URL:http://ml-service:8000}
+
+aws:
+  endpoint-url: ${AWS_ENDPOINT_URL:http://localstack:4566}
+
+sqs:
+  queue-url: ${SQS_QUEUE_URL:http://localstack:4566/000000000000/fraud-results}
