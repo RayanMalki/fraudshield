@@ -17,7 +17,7 @@ function fmt(n: number) {
 }
 
 export default function ResultCard({ result, transaction }: Props) {
-  const isFraud = result.is_fraud;
+  const isFraud = result.is_fraud ?? result.confidence >= 0.5;
   const pct = Math.round(result.confidence * 100);
 
   // Risk level
