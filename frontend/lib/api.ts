@@ -110,6 +110,14 @@ export function predictFraud(data: TransactionInput) {
   });
 }
 
+export function analyzeTransaction(data: TransactionInput, token: string) {
+  return request<PredictionResult>(`${GATEWAY}/api/transactions/predict`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+}
+
 // ── Results Service ────────────────────────────────────────────────────────
 
 export function saveResult(payload: ResultRequest, token: string) {
