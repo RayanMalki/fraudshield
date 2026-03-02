@@ -1,5 +1,4 @@
 services:
-
   # ── Databases ──────────────────────────────────────────────────────────────
 
   postgres-user:
@@ -20,39 +19,33 @@ services:
       timeout: 5s
       retries: 5
 
-  postgres-results:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: resultsdb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "5434:5432"
-    volumes:
-      - postgres-results-data:/var/lib/postgresql/data
-    networks:
-      - fraudshield-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d resultsdb"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # ── Application services ───────────────────────────────────────────────────
 
   ml-service:
     build: ./ml-service
     ports:
-      - "8000:8000"   # HTTP /predict
       - "50051:50051" # gRPC FraudDetectionService
+    environment:
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      MODEL_S3_BUCKET: fraudshield-models
+      MODEL_S3_KEY: fraud_model.pkl
+    depends_on:
+      localstack:
+        condition: service_healthy
     networks:
       - fraudshield-network
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')\""]
+      test:
+        [
+          "CMD-SHELL",
+          'python -c "import urllib.request; urllib.request.urlopen(''http://localhost:8000/docs'')"',
+        ]
       interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 20s
+      start_period: 30s
 
   user-service:
     build: ./user-service
@@ -74,11 +67,10 @@ services:
     ports:
       - "8083:8083"
     environment:
-      DB_URL: jdbc:postgresql://postgres-results:5432/resultsdb
-      DB_USERNAME: postgres
-      DB_PASSWORD: ${DB_PASSWORD}
+      AWS_ENDPOINT_URL: http://localstack:4566
+      DYNAMODB_TABLE: fraud-results
     depends_on:
-      postgres-results:
+      localstack:
         condition: service_healthy
     networks:
       - fraudshield-network
@@ -90,8 +82,12 @@ services:
     environment:
       ML_SERVICE_HOST: ml-service
       ML_SERVICE_PORT: 50051
+      AWS_ENDPOINT_URL: http://localstack:4566
+      SQS_QUEUE_URL: http://localstack:4566/000000000000/fraud-results
     depends_on:
       ml-service:
+        condition: service_healthy
+      localstack:
         condition: service_healthy
     networks:
       - fraudshield-network
@@ -102,11 +98,18 @@ services:
       - "8080:8080"
     environment:
       JWT_SECRET: ${JWT_SECRET}
+      AWS_ENDPOINT_URL: http://localstack:4566
     depends_on:
-      - user-service
-      - ingestion-service
-      - results-service
-      - ml-service
+      user-service:
+        condition: service_started
+      ingestion-service:
+        condition: service_started
+      results-service:
+        condition: service_started
+      ml-service:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
     networks:
       - fraudshield-network
 
@@ -118,18 +121,39 @@ services:
       # the backends through the host-mapped ports, not Docker service names.
       args:
         NEXT_PUBLIC_GATEWAY_URL: ${NEXT_PUBLIC_GATEWAY_URL:-http://localhost:8080}
-        NEXT_PUBLIC_ML_URL: ${NEXT_PUBLIC_ML_URL:-http://localhost:8000}
     ports:
       - "3000:3000"
     depends_on:
       - api-gateway
-      - ml-service
     networks:
       - fraudshield-network
 
+  # ── LocalStack (AWS emulation) ─────────────────────────────────────────────
+  localstack:
+    image: localstack/localstack-pro
+    ports:
+      - "4566:4566"
+    environment:
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
+      - SERVICES=s3,sqs,sns,lambda,dynamodb
+      - LAMBDA_DOCKER_NETWORK=fraudshield-network
+      - LAMBDA_RUNTIME_EXECUTOR=docker
+    volumes:
+      - ./localstack-init:/etc/localstack/init
+      - ./lambda:/lambda
+      - ./ml-service/model:/models
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - fraudshield-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:4566/_localstack/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
 volumes:
   postgres-user-data:
-  postgres-results-data:
 
 networks:
   fraudshield-network:
