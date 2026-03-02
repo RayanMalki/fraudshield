@@ -19,6 +19,49 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── LocalStack (AWS emulation) ─────────────────────────────────────────────
+
+  localstack:
+    image: localstack/localstack-pro
+    ports:
+      - "4566:4566"
+    environment:
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
+      - SERVICES=s3,sqs,sns,lambda,dynamodb
+      - LAMBDA_DOCKER_NETWORK=fraudshield-network
+      - LAMBDA_RUNTIME_EXECUTOR=docker
+    volumes:
+      - ./lambda:/lambda
+      - ./ml-service/model:/models
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - fraudshield-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:4566/_localstack/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # Runs once after LocalStack is healthy to create all AWS resources
+  aws-init:
+    image: amazon/aws-cli:latest
+    entrypoint: ["/bin/bash", "/init.sh"]
+    environment:
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    volumes:
+      - ./localstack-init/ready.d/init.sh:/init.sh:ro
+      - ./lambda:/lambda:ro
+      - ./ml-service/model:/models:ro
+    depends_on:
+      localstack:
+        condition: service_healthy
+    networks:
+      - fraudshield-network
+    restart: "no"
+
   # ── Application services ───────────────────────────────────────────────────
 
   ml-service:
@@ -32,8 +75,8 @@ services:
       MODEL_S3_BUCKET: fraudshield-models
       MODEL_S3_KEY: fraud_model.pkl
     depends_on:
-      localstack:
-        condition: service_healthy
+      aws-init:
+        condition: service_completed_successfully
     networks:
       - fraudshield-network
     healthcheck:
@@ -70,8 +113,8 @@ services:
       AWS_ENDPOINT_URL: http://localstack:4566
       DYNAMODB_TABLE: fraud-results
     depends_on:
-      localstack:
-        condition: service_healthy
+      aws-init:
+        condition: service_completed_successfully
     networks:
       - fraudshield-network
 
@@ -87,10 +130,16 @@ services:
     depends_on:
       ml-service:
         condition: service_healthy
-      localstack:
-        condition: service_healthy
+      aws-init:
+        condition: service_completed_successfully
     networks:
       - fraudshield-network
+    healthcheck:
+      test: ["CMD-SHELL", "(echo > /dev/tcp/localhost/8082) &>/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   api-gateway:
     build: ./api-gateway
@@ -103,12 +152,10 @@ services:
       user-service:
         condition: service_started
       ingestion-service:
-        condition: service_started
+        condition: service_healthy
       results-service:
         condition: service_started
       ml-service:
-        condition: service_healthy
-      localstack:
         condition: service_healthy
     networks:
       - fraudshield-network
@@ -116,9 +163,6 @@ services:
   frontend:
     build:
       context: ./frontend
-      # NEXT_PUBLIC_* vars are baked into the JS bundle at build time.
-      # They point to localhost because the browser (on the host) reaches
-      # the backends through the host-mapped ports, not Docker service names.
       args:
         NEXT_PUBLIC_GATEWAY_URL: ${NEXT_PUBLIC_GATEWAY_URL:-http://localhost:8080}
     ports:
@@ -128,33 +172,10 @@ services:
     networks:
       - fraudshield-network
 
-  # ── LocalStack (AWS emulation) ─────────────────────────────────────────────
-  localstack:
-    image: localstack/localstack-pro
-    ports:
-      - "4566:4566"
-    environment:
-      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
-      - SERVICES=s3,sqs,sns,lambda,dynamodb
-      - LAMBDA_DOCKER_NETWORK=fraudshield-network
-      - LAMBDA_RUNTIME_EXECUTOR=docker
-    volumes:
-      - ./localstack-init:/etc/localstack/init
-      - ./lambda:/lambda
-      - ./ml-service/model:/models
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - fraudshield-network
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:4566/_localstack/health || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-      start_period: 20s
-
 volumes:
   postgres-user-data:
 
 networks:
   fraudshield-network:
+    name: fraudshield-network
     driver: bridge
