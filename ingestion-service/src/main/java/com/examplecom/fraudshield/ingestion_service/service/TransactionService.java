@@ -5,13 +5,13 @@ import com.examplecom.fraudshield.ingestion_service.dto.PredictionResult;
 import com.examplecom.fraudshield.ingestion_service.dto.TransactionRequest;
 import com.examplecom.fraudshield.ingestion_service.dto.TransactionResponse;
 import com.examplecom.fraudshield.ingestion_service.grpc.MLServiceClient;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -56,7 +56,7 @@ public class TransactionService {
             resultPayload.put("amount", request.getAmount());
             resultPayload.put("merchant", request.getType().toString());
             resultPayload.put("location", "FraudShield Analysis");
-            resultPayload.put("fraudulent", prediction.is_fraud());
+            resultPayload.put("fraudulent", prediction.isFraud());
             resultPayload.put("confidenceScore", prediction.getConfidence());
 
             String messageBody = objectMapper.writeValueAsString(resultPayload);
