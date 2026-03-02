@@ -4,11 +4,8 @@ server:
 spring:
   application:
     name: results-service
-  datasource:
-    url: ${DB_URL:jdbc:postgresql://postgres-results:5432/resultsdb}
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:postgres}
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
+
+aws:
+  endpoint-url: ${AWS_ENDPOINT_URL:http://localstack:4566}
+  dynamodb:
+    table: ${DYNAMODB_TABLE:fraud-results}
