@@ -13,8 +13,7 @@ RUN python -m grpc_tools.protoc \
     --grpc_python_out=. \
     fraud_detection.proto
 
-# Copy model artifact and application code
-COPY model/ ./model/
+# Copy application code (model is downloaded from S3 at runtime)
 COPY main.py grpc_server.py ./
 
 EXPOSE 8000 50051
