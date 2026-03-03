@@ -15,6 +15,24 @@ MODEL_PATH = Path(__file__).parent / "model" / "fraud_model.pkl"
 MODEL_S3_BUCKET = os.environ.get("MODEL_S3_BUCKET", "fraudshield-models")
 MODEL_S3_KEY = os.environ.get("MODEL_S3_KEY", "fraud_model.pkl")
 AWS_ENDPOINT_URL = os.environ.get("AWS_ENDPOINT_URL", "")
+FRAUD_THRESHOLD_ENV = os.environ.get("FRAUD_THRESHOLD", "0.99")
+
+
+def _load_fraud_threshold(raw_threshold: str) -> float:
+    try:
+        threshold = float(raw_threshold)
+    except ValueError as e:
+        raise ValueError(f"Invalid FRAUD_THRESHOLD '{raw_threshold}': expected a float.") from e
+
+    if threshold < 0.0 or threshold > 1.0:
+        raise ValueError(
+            f"Invalid FRAUD_THRESHOLD '{raw_threshold}': expected a value between 0 and 1."
+        )
+
+    return threshold
+
+
+FRAUD_THRESHOLD = _load_fraud_threshold(FRAUD_THRESHOLD_ENV)
 
 
 def _download_model_from_s3(retries: int = 10, delay: int = 10) -> None:
@@ -64,7 +82,8 @@ async def lifespan(app: FastAPI):
     model = joblib.load(MODEL_PATH)
 
     from grpc_server import serve as grpc_serve
-    grpc_server = grpc_serve(model)
+    print(f"Loaded fraud decision threshold: {FRAUD_THRESHOLD}")
+    grpc_server = grpc_serve(model, FRAUD_THRESHOLD)
 
     yield
 
@@ -109,4 +128,7 @@ def predict(transaction: Transaction):
     proba = model.predict_proba(df)[0]
     fraud_proba = float(proba[1])
 
-    return PredictionResponse(is_fraud=fraud_proba >= 0.5, confidence=fraud_proba)
+    return PredictionResponse(
+        is_fraud=fraud_proba >= FRAUD_THRESHOLD,
+        confidence=fraud_proba,
+    )
