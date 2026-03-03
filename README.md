@@ -116,6 +116,8 @@ FraudShield is composed of six containerised services and a LocalStack instance 
 
 > Trained on a heavily imbalanced dataset (1:784 fraud ratio). Threshold tuned to 0.99 to minimise false positives while retaining strong fraud detection.
 
+Runtime classification threshold is controlled by the ML service `FRAUD_THRESHOLD` environment variable (default `0.99`), and is applied consistently across both HTTP and gRPC prediction paths.
+
 **Frontend**
 - Next.js 15, React 19, TypeScript
 - Tailwind CSS 3, lucide-react
