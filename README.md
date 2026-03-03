@@ -103,7 +103,18 @@ FraudShield is composed of six containerised services and a LocalStack instance 
 **Machine Learning**
 - Python 3, FastAPI, Uvicorn
 - XGBoost, scikit-learn, pandas, joblib
-- Model trained on the [PaySim synthetic dataset](https://www.kaggle.com/datasets/ealaxi/paysim1)
+- Model trained on the [PaySim synthetic dataset](https://www.kaggle.com/datasets/ealaxi/paysim1) (6.36M transactions)
+
+**Model Performance** (XGBoost, threshold = 0.99, test set 20%)
+
+| Metric | Score |
+|--------|-------|
+| F1 Score | 0.880 |
+| Precision | 93.2% |
+| Recall | 83.4% |
+| ROC AUC | 0.917 |
+
+> Trained on a heavily imbalanced dataset (1:784 fraud ratio). Threshold tuned to 0.99 to minimise false positives while retaining strong fraud detection.
 
 **Frontend**
 - Next.js 15, React 19, TypeScript
