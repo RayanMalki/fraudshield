@@ -30,50 +30,77 @@ const TYPE_DESCRIPTIONS: Record<TransactionType, string> = {
 
 interface FormValues {
   type: TransactionType;
-  step: string;
   amount: string;
   oldbalanceOrg: string;
-  newbalanceOrig: string;
   oldbalanceDest: string;
-  newbalanceDest: string;
 }
 
 const DEFAULTS: FormValues = {
   type: "TRANSFER",
-  step: "1",
   amount: "",
   oldbalanceOrg: "",
-  newbalanceOrig: "",
   oldbalanceDest: "",
-  newbalanceDest: "",
 };
 
-// A prefilled example that the model should flag as fraud
 const EXAMPLE_FRAUD: FormValues = {
   type: "TRANSFER",
-  step: "1",
   amount: "9000",
   oldbalanceOrg: "9000",
-  newbalanceOrig: "0",
   oldbalanceDest: "0",
-  newbalanceDest: "9000",
 };
 
-interface Field {
-  key: keyof FormValues;
+type VisibleKey = "amount" | "oldbalanceOrg" | "oldbalanceDest";
+
+interface FieldConfig {
+  key: VisibleKey;
   label: string;
   hint: string;
-  type: "number" | "text";
 }
 
-const NUMERIC_FIELDS: Field[] = [
-  { key: "step", label: "Step", hint: "Simulation step (integer)", type: "number" },
-  { key: "amount", label: "Amount (USD)", hint: "Transaction amount", type: "number" },
-  { key: "oldbalanceOrg", label: "Origin balance before", hint: "Sender balance before transaction", type: "number" },
-  { key: "newbalanceOrig", label: "Origin balance after", hint: "Sender balance after transaction", type: "number" },
-  { key: "oldbalanceDest", label: "Dest. balance before", hint: "Receiver balance before transaction", type: "number" },
-  { key: "newbalanceDest", label: "Dest. balance after", hint: "Receiver balance after transaction", type: "number" },
-];
+function getFields(type: TransactionType): FieldConfig[] {
+  switch (type) {
+    case "TRANSFER":
+      return [
+        { key: "amount", label: "Amount (USD)", hint: "Amount to transfer" },
+        { key: "oldbalanceOrg", label: "Origin balance", hint: "Sender's account balance before transfer" },
+        { key: "oldbalanceDest", label: "Dest. balance", hint: "Recipient's account balance before transfer" },
+      ];
+    case "CASH_OUT":
+      return [
+        { key: "amount", label: "Amount (USD)", hint: "Amount to withdraw" },
+        { key: "oldbalanceOrg", label: "Account balance", hint: "Your account balance before withdrawal" },
+      ];
+    case "CASH_IN":
+      return [
+        { key: "amount", label: "Amount (USD)", hint: "Amount to deposit" },
+        { key: "oldbalanceDest", label: "Account balance", hint: "Your account balance before deposit" },
+      ];
+    case "DEBIT":
+    case "PAYMENT":
+      return [
+        { key: "amount", label: "Amount (USD)", hint: "Transaction amount" },
+        { key: "oldbalanceOrg", label: "Account balance", hint: "Your account balance before transaction" },
+      ];
+  }
+}
+
+function buildTransaction(form: FormValues): TransactionInput {
+  const amount = parseFloat(form.amount);
+  const oldOrg = parseFloat(form.oldbalanceOrg || "0");
+  const oldDest = parseFloat(form.oldbalanceDest || "0");
+
+  switch (form.type) {
+    case "TRANSFER":
+      return { type: form.type, step: 1, amount, oldbalanceOrg: oldOrg, newbalanceOrig: Math.max(0, oldOrg - amount), oldbalanceDest: oldDest, newbalanceDest: oldDest + amount };
+    case "CASH_OUT":
+      return { type: form.type, step: 1, amount, oldbalanceOrg: oldOrg, newbalanceOrig: Math.max(0, oldOrg - amount), oldbalanceDest: 0, newbalanceDest: amount };
+    case "CASH_IN":
+      return { type: form.type, step: 1, amount, oldbalanceOrg: amount, newbalanceOrig: 0, oldbalanceDest: oldDest, newbalanceDest: oldDest + amount };
+    case "DEBIT":
+    case "PAYMENT":
+      return { type: form.type, step: 1, amount, oldbalanceOrg: oldOrg, newbalanceOrig: Math.max(0, oldOrg - amount), oldbalanceDest: 0, newbalanceDest: 0 };
+  }
+}
 
 export default function TransactionsPage() {
   const { token, isAuthenticated } = useAuth();
@@ -94,6 +121,11 @@ export default function TransactionsPage() {
     setError(null);
   }
 
+  function changeType(type: TransactionType) {
+    setForm({ ...DEFAULTS, type });
+    setError(null);
+  }
+
   function reset() {
     setForm(DEFAULTS);
     setResult(null);
@@ -108,27 +140,16 @@ export default function TransactionsPage() {
     setResult(null);
 
     try {
-      const tx: TransactionInput = {
-        type: form.type,
-        step: parseInt(form.step, 10),
-        amount: parseFloat(form.amount),
-        oldbalanceOrg: parseFloat(form.oldbalanceOrg),
-        newbalanceOrig: parseFloat(form.newbalanceOrig),
-        oldbalanceDest: parseFloat(form.oldbalanceDest),
-        newbalanceDest: parseFloat(form.newbalanceDest),
-      };
+      const amount = parseFloat(form.amount);
+      if (isNaN(amount) || amount <= 0) throw new Error('"Amount" must be a positive number');
 
-      // Validate
-      const nums: (keyof TransactionInput)[] = [
-        "step", "amount", "oldbalanceOrg", "newbalanceOrig",
-        "oldbalanceDest", "newbalanceDest",
-      ];
-      for (const k of nums) {
-        if (isNaN(tx[k] as number)) {
-          throw new Error(`"${k}" must be a valid number`);
-        }
+      const fields = getFields(form.type);
+      for (const { key, label } of fields) {
+        if (key === "amount") continue;
+        if (isNaN(parseFloat(form[key]))) throw new Error(`"${label}" must be a valid number`);
       }
 
+      const tx = buildTransaction(form);
       const prediction = await analyzeTransaction(tx, token!);
       setResult(prediction);
       setLastTx(tx);
@@ -141,9 +162,10 @@ export default function TransactionsPage() {
 
   if (!isAuthenticated) return null;
 
+  const visibleFields = getFields(form.type);
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      {/* Page header */}
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 flex flex-col items-center justify-center min-h-[80vh]">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white">Transaction Analysis</h1>
         <p className="mt-1 text-sm text-gray-500">
@@ -151,7 +173,7 @@ export default function TransactionsPage() {
         </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 w-full">
         {/* ── Form Card ─────────────────────────────────────────────── */}
         <div className="card p-6">
           <div className="mb-5 flex items-center justify-between">
@@ -176,7 +198,7 @@ export default function TransactionsPage() {
               <select
                 className="input appearance-none cursor-pointer"
                 value={form.type}
-                onChange={(e) => setField("type", e.target.value as TransactionType)}
+                onChange={(e) => changeType(e.target.value as TransactionType)}
               >
                 {TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -186,9 +208,9 @@ export default function TransactionsPage() {
               </select>
             </div>
 
-            {/* Numeric fields in a 2-column grid */}
+            {/* Dynamic fields */}
             <div className="grid grid-cols-2 gap-3">
-              {NUMERIC_FIELDS.map(({ key, label, hint }) => (
+              {visibleFields.map(({ key, label, hint }) => (
                 <div key={key}>
                   <label className="mb-1.5 flex items-center gap-1 text-xs font-medium text-gray-400">
                     {label}
@@ -246,7 +268,6 @@ export default function TransactionsPage() {
               )}
             </div>
           </form>
-
         </div>
 
         {/* ── Result Panel ─────────────────────────────────────────── */}
