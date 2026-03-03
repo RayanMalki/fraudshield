@@ -12,3 +12,6 @@
 frontend/.dockerignore
 frontend/.env.example
 ml-service/data/transactions.csv
+docs/FraudShield_Interview_Guide.md
+docs/FraudShield_Interview_Guide.pdf
+docs/build_interview_pdf.py
