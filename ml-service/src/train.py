@@ -5,6 +5,8 @@ from sklearn.metrics import classification_report, roc_auc_score
 import joblib
 from sklearn.metrics import f1_score, precision_score, recall_score
 
+FRAUD_THRESHOLD = 0.99
+
 df = pd.read_csv("/content/drive/MyDrive/transactions.csv")
 print(f"Dataset loaded: {len(df)} rows")
 
@@ -35,7 +37,7 @@ model = xgb.XGBClassifier(**params)
 
 model.fit(X_train, y_train, verbose=True)
 
-y_pred = (model.predict_proba(X_test)[:, 1] > 0.99).astype(int)
+y_pred = (model.predict_proba(X_test)[:, 1] >= FRAUD_THRESHOLD).astype(int)
 
 print(classification_report(y_test, y_pred))
 print("ROC AUC:  ", roc_auc_score(y_test, y_pred))
