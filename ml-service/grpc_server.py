@@ -34,8 +34,9 @@ FEATURE_COLUMNS = [
 
 
 class FraudDetectionServicer(fraud_detection_pb2_grpc.FraudDetectionServiceServicer):
-    def __init__(self, model):
+    def __init__(self, model, threshold: float):
         self._model = model
+        self._threshold = threshold
 
     def PredictFraud(self, request, context):
         df = pd.DataFrame(
@@ -59,15 +60,15 @@ class FraudDetectionServicer(fraud_detection_pb2_grpc.FraudDetectionServiceServi
 
         return fraud_detection_pb2.FraudResponse(
             transaction_id=request.transaction_id,
-            fraudulent=fraud_proba >= 0.5,
+            fraudulent=fraud_proba >= self._threshold,
             confidence_score=fraud_proba,
         )
 
 
-def serve(model) -> grpc.Server:
+def serve(model, threshold: float = 0.99) -> grpc.Server:
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     fraud_detection_pb2_grpc.add_FraudDetectionServiceServicer_to_server(
-        FraudDetectionServicer(model), server
+        FraudDetectionServicer(model, threshold), server
     )
     server.add_insecure_port("[::]:50051")
     server.start()
